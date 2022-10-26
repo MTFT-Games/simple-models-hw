@@ -2,7 +2,7 @@
 const models = require('../models');
 
 // get the Cat model
-const { Cat } = models;
+const { Cat, Dog } = models;
 
 // default fake data so that we have something to work with until we make a real Cat
 const defaultData = {
@@ -234,6 +234,77 @@ const updateLast = (req, res) => {
   });
 };
 
+// Function to create a new dog in the database
+const createDog = async (req, res) => {
+  // Guard against missing data
+  if (!req.body.name || !req.body.breed || !req.body.age) {
+    // If they are missing data, send back an error.
+    return res.status(400).json({ error: 'name, breed and age are all required' });
+  }
+
+  const dogData = {
+    name: req.body.name,
+    breed: req.body.breed,
+    age: req.body.age,
+  };
+
+  const newDog = new Dog(dogData);
+
+  try {
+    await newDog.save();
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ error: 'failed to create dog' });
+  }
+
+  return res.json(dogData);
+};
+
+// Function to handle searching a dog by name.
+const findDog = async (req, res) => {
+  // Guard against missing data
+  if (!req.query.name) {
+    return res.status(400).json({ error: 'Name is required to perform a search' });
+  }
+
+  let doc;
+  try {
+    const options = { returnDocument: 'after', lean: true, projection: ['name', 'breed', 'age'] };
+    doc = await Dog.findOneAndUpdate(
+      { name: req.query.name },
+      { $inc: { age: 1 } },
+      options,
+    )
+      .exec();
+  } catch (err) {
+    // If there is an error, log it and send the user an error message.
+    console.log(err);
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  // If we do not find something that matches our search, doc will be empty.
+  if (!doc) {
+    return res.json({ error: 'No dogs found' });
+  }
+
+  // Otherwise, we got a result and will send it back to the user.
+  return res.json({ name: doc.name, breed: doc.breed, age: doc.age });
+};
+
+// Function for rendering the page4 template
+// Page1 has a loop that iterates over an array of dogs
+const hostPage4 = async (req, res) => {
+  try {
+    const docs = await Dog.find({}).lean().exec();
+
+    // Once we get back the docs array, we can send it to page1.
+    return res.render('page4', { dogs: docs });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ error: 'failed to find cats' });
+  }
+};
+
 // A function to send back the 404 page.
 const notFound = (req, res) => {
   res.status(404).render('notFound', {
@@ -247,9 +318,12 @@ module.exports = {
   page1: hostPage1,
   page2: hostPage2,
   page3: hostPage3,
+  page4: hostPage4,
   getName,
   setName,
   updateLast,
   searchName,
   notFound,
+  findDog,
+  createDog,
 };
